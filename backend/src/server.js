@@ -4,6 +4,12 @@ const app = express();
 
 const PORT = 3000;
 
+app.use(express.json());
+
+const productosRoutes = require("./routes/productos.routes");
+
+app.use("/productos", productosRoutes);
+
 app.get("/", (req, res) => {
     res.send("¡Bienvenido al Sistema de Gestión del Kiosco La Palmera!");
 });
