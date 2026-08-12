@@ -19,18 +19,68 @@
 const pool = require('../config/db');
 
 const obtenerProductos = async (req, res) => {
+    const { nombre, codigo_barra } = req.query;
+
     try {
-        const resultado = await pool.query('SELECT * FROM productos');
+        let consulta = 'SELECT * FROM productos';
+        let valores = [];
+
+        if (nombre) {
+            consulta += ' WHERE nombre ILIKE $1';
+            valores = [`%${nombre}%`];
+        }
+
+        if (codigo_barra) {
+            consulta += valores.length === 0
+                ? ' WHERE codigo_barra = $1'
+                : ' AND codigo_barra = $2';
+
+            valores.push(codigo_barra);
+        }
+
+        const resultado = await pool.query(consulta, valores);
+
         res.json(resultado.rows);
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ mensaje: 'Error al obtener productos' });
+        res.status(500).json({
+            mensaje: 'Error al obtener productos'
+        });
     }
 };
 
 const crearProducto = async (req, res) => {
     // 1. Extraemos los campos que vienen del body de la petición
     const { nombre, stock, precio_venta, codigo_barra, stock_min } = req.body;
+
+    // Validamos que el nombre exista
+    if (!nombre) {
+        return res.status(400).json({
+            mensaje: "El nombre es obligatorio"
+        });
+    }
+
+    // Validamos que el stock no sea negativo
+    if (stock < 0) {
+        return res.status(400).json({
+            mensaje: "El stock no puede ser negativo"
+        });
+    }
+
+    // Validamos que el precio sea mayor a 0
+    if (precio_venta <= 0) {
+        return res.status(400).json({
+            mensaje: "El precio de venta debe ser mayor a 0"
+        });
+    }
+
+    // Validamos que el stock mínimo no sea negativo
+    if (stock_min < 0) {
+        return res.status(400).json({
+            mensaje: "El stock mínimo no puede ser negativo"
+        });
+    }
 
     try {
         // 2. Preparamos la consulta INSERT con parámetros ($1, $2, etc.)
@@ -39,51 +89,73 @@ const crearProducto = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5)
             RETURNING *;
         `;
+
         const valores = [nombre, stock, precio_venta, codigo_barra, stock_min];
 
         // 3. Ejecutamos la consulta en la BD
         const resultado = await pool.query(consulta, valores);
 
-        // 4. Devolvemos el producto recién creado (resultado.rows[0])
+        // 4. Devolvemos el producto recién creado
         res.status(201).json(resultado.rows[0]);
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ mensaje: 'Error al crear el producto' });
+        res.status(500).json({
+            mensaje: "Error al crear el producto"
+        });
     }
 };
 
 const modificarProducto = async (req, res) => {
-    // 1. Agarramos el id de la URL (params) y los datos del body
     const id = Number(req.params.id);
     const { nombre, stock, precio_venta } = req.body;
 
+    // Validamos el nombre
+    if (!nombre) {
+        return res.status(400).json({
+            mensaje: "El nombre es obligatorio"
+        });
+    }
+
+    // Validamos el stock
+    if (stock < 0) {
+        return res.status(400).json({
+            mensaje: "El stock no puede ser negativo"
+        });
+    }
+
+    // Validamos el precio
+    if (precio_venta <= 0) {
+        return res.status(400).json({
+            mensaje: "El precio de venta debe ser mayor a 0"
+        });
+    }
+
     try {
-        // 2. Preparamos la consulta UPDATE con casilleros
         const consulta = `
             UPDATE productos
             SET nombre = $1, stock = $2, precio_venta = $3
             WHERE id = $4
             RETURNING *;
         `;
-        
-        // 3. Ordenamos los datos (los $1, $2, $3 son los nuevos datos y el $4 es el id del WHERE)
+
         const valores = [nombre, stock, precio_venta, id];
 
-        // 4. Ejecutamos la consulta
         const resultado = await pool.query(consulta, valores);
 
-        // 5. Si resultado.rowCount es 0, significa que no existía ningún producto con ese ID
         if (resultado.rowCount === 0) {
             return res.status(404).json({
                 mensaje: "Producto no encontrado"
             });
         }
 
-        // 6. Si lo encontró y lo modificó, devolvemos la fila actualizada
         res.json(resultado.rows[0]);
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ mensaje: 'Error al actualizar el producto' });
+        res.status(500).json({
+            mensaje: "Error al actualizar el producto"
+        });
     }
 };
 
